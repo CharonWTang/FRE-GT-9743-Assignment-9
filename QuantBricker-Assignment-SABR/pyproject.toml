@@ -28,6 +28,9 @@ dependencies = [
   "scipy==1.16.2",
   "QuantLib==1.40",
   "pysabr==0.4.1",
+  "construct",
+  "regex",
+  "sympy",
 ]
 
 [project.optional-dependencies]

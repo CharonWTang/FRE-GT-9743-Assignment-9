@@ -270,10 +270,101 @@ class ValuationEngineRFRCapletFloorlet(ValuationEngineProduct):
         report.set_cash(self.currency_, self.cash_)
         return report
 
-    
+
+class ValuationEngineRFRCapFloor(ValuationEngineProduct):
+
+    def __init__(
+        self,
+        model: SABRModel,
+        valuation_parameters_collection: ValuationParametersCollection,
+        product: ProductRFRCapFloor,
+        request: ValuationRequest,
+    ):
+        super().__init__(model, valuation_parameters_collection, product, request)
+
+        self.currency_ = product.currency
+        self.caplet_engines_ = [
+            ValuationEngineRFRCapletFloorlet(
+                model,
+                valuation_parameters_collection,
+                product.caplets(i),
+                request,
+            )
+            for i in range(product.num_caplets())
+        ]
+
+    @classmethod
+    def val_engine_type(cls) -> str:
+        return cls.__name__
+
+    def calculate_value(self):
+        self.value_ = 0.0
+        self.cash_ = 0.0
+
+        for engine in self.caplet_engines_:
+            engine.calculate_value()
+            self.value_ += engine.value
+            self.cash_ += engine.cash
+
+
+    def calculate_first_order_risk(self, gradient=None, scaler=1.0, accumulate=False):
+        if self.value_ is None:
+            self.calculate_value()
+
+        local_grad = []
+        self.model_.resize_gradient(local_grad)
+
+        for engine in self.caplet_engines_:
+            child_grad = []
+            engine.calculate_first_order_risk(child_grad, scaler, False)
+            for i in range(len(local_grad)):
+                local_grad[i] += child_grad[i]
+
+        if gradient is None:
+            gradient = []
+        self.model_.resize_gradient(gradient)
+
+        if accumulate:
+            for i in range(len(gradient)):
+                gradient[i] += local_grad[i]
+        else:
+            gradient[:] = local_grad
+
+    def create_cash_flows_report(self) -> CashflowsReport:
+        if self.value_ is None:
+            self.calculate_value()
+
+        report = CashflowsReport()
+        for engine in self.caplet_engines_:
+            report.add_row(
+                0,
+                self.product_._product_type,
+                self.val_engine_type(),
+                engine.notional_,
+                engine.sign_,
+                engine.pay_date_,
+                engine.value_ / engine.df_ if engine.df_ != 0.0 else 0.0,
+                engine.value_,
+                engine.df_,
+                fixing_date=engine.expiry_date_,
+                start_date=engine.effective_date_,
+                end_date=engine.termination_date_,
+                accrued=engine.accrual_,
+                index_or_fixed=engine.overnight_index_.name(),
+                index_value=engine.forward_,
+            )
+        return report
+
+    def get_value_and_cash(self) -> PVCashReport:
+        report = PVCashReport(self.currency_)
+        report.set_pv(self.currency_, self.value_)
+        report.set_cash(self.currency_, self.cash_)
+        return report
+
 
 _SABR_ENGINE_MAP = {
     ProductRFRCapletFloorlet._product_type:     ValuationEngineRFRCapletFloorlet,
+    ProductRFRCapFloor._product_type:           ValuationEngineRFRCapFloor,
 }
 
 for prod_type, eng_cls in _SABR_ENGINE_MAP.items():
@@ -281,7 +372,7 @@ for prod_type, eng_cls in _SABR_ENGINE_MAP.items():
         (SABRModel._model_type.to_string(), prod_type, AnalyticValParam._vp_type),
         eng_cls,
     )
-     
+
 
 
 # class ValuationEngineIborCapFloorlet(ValuationEngine):

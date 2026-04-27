@@ -1,6 +1,7 @@
 import math
 from re import sub
 from typing import Optional, Any, Dict, List, Tuple
+from unittest import result
 from scipy.linalg import block_diag
 from matplotlib.dates import SA
 import numpy as np
@@ -385,8 +386,11 @@ class SABRModelComponent(ModelComponent):
         - You need to evaluate each interpolator at the given (expiry, tenor)
         - The output should be a dictionary mapping SABRParameters -> float
         """
-        # TODO: implement
-        pass
+        result = {}
+        for param in [SABRParameters.NV, SABRParameters.BETA, SABRParameters.NU, SABRParameters.RHO]:
+            result[param] = self.interpolator_[param].interpolate(expiry, tenor)
+        return result
+
     
     def get_sabr_parameter_gradient_wrt_state(
         self,
@@ -406,9 +410,29 @@ class SABRModelComponent(ModelComponent):
         - Concatenate all parameter gradients into one vector
         - If accumulate=True, add to gradient_vector; otherwise overwrite it
         """
-        # TODO: implement
-        pass
-            
-            
+        all_parameters = [
+            SABRParameters.NV,
+            SABRParameters.BETA,
+            SABRParameters.NU,
+            SABRParameters.RHO,
+        ]
+        if scalers is None:
+            scalers = [1.0] * len(all_parameters)
+        if len(scalers) != len(all_parameters):
+            raise ValueError("scalers must contain one value for each SABR parameter.")
 
+        grad = np.concatenate([
+            self.interpolator_[param].gradient_wrt_ordinate(expiry, tenor) * scaler
+            for param, scaler in zip(all_parameters, scalers)
+        ])
+
+        if accumulate:
+            assert len(gradient_vector) == len(grad)
+            gradient_vector[:] += grad
+        else:
+            gradient_vector[:] = grad
+        return gradient_vector
+
+            
+            
 

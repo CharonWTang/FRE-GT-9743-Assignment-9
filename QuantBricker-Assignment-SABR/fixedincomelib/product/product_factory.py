@@ -389,7 +389,7 @@ class ProductFactory:
             
             termination_ttd = term_or_termination_date
 
-        # TODO:
+        # TODO: Done
         # Extract contract parameters from inputs
         #
         # Hint:
@@ -401,10 +401,23 @@ class ProductFactory:
         # long_or_short = ...
         # notional = ...
 
-        # TODO:
+        # TODO: Done
         # Construct and return ProductRFRCapFloor
-        pass
-
+        strike = kwargs.get("strike", values)
+        cap_or_floor = CapOrFloor.from_string(kwargs.get("cap_or_floor", "cap"))
+        long_or_short = LongOrShort.from_string(kwargs.get("long_or_short", "long"))
+        notional = kwargs.get("notional", 1e4)
+        return ProductRFRCapFloor(
+            effective_date=effective_date,
+            term_or_termination_date=termination_ttd,
+            on_index=data_convention.index_str,
+            strike=strike,
+            notional=notional,
+            cap_or_floor=cap_or_floor,
+            accrual_basis=data_convention.acc_basis,
+            long_or_short=long_or_short
+        )
+    
 
     ### utilities
     @staticmethod
